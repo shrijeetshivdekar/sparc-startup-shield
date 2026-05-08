@@ -1661,6 +1661,30 @@ function pct(v) {
   return `${Math.round(n * 100)}%`;
 }
 
+const SIGNAL_LABELS = {
+  handles_pii:          "Handles personal data",
+  rbi_licensed:         "RBI-licensed business",
+  sebi_regulated:       "SEBI-regulated entity",
+  healthtech:           "Health data processed",
+  fintech:              "Financial services product",
+  has_investors:        "Has institutional investors",
+  ai_in_product:        "AI used in product",
+  b2b_contracts:        "B2B contracts in place",
+  physical_assets:      "Owns physical assets",
+  gig_workers:          "Employs gig / contract workers",
+  export_operations:    "Operates internationally",
+  cert_in_obligations:  "CERT-In reporting obligations",
+};
+
+const RISK_FACTOR_LABELS = {
+  claims_frequency: "How often claims occur in this sector",
+  claims_freq:      "How often claims occur in this sector",
+  settlement:       "Typical time to resolve a claim",
+  settlement_time:  "Typical time to resolve a claim",
+  regulatory_volatility: "How fast regulations are changing",
+  market_saturation:     "Competition in this cover segment",
+};
+
 function renderV2Insights(result) {
   const isV2 = Boolean(result?.config_version || result?.graduation_map || result?.compliance_flags);
   if (!isV2) return "";
@@ -1671,39 +1695,38 @@ function renderV2Insights(result) {
     .toLowerCase().replace("+", "").replace(/\s+/g, "_").replace("pre-seed", "seed");
   const path = Array.isArray(graduation) ? graduation : (graduation[stageKey] || graduation.seed || []);
   const triggers = result.regulatory_triggers_fired || [];
-  const riskItems = [
-    ["Claims frequency", risk.claims_frequency ?? risk.claims_freq],
-    ["Settlement time", risk.settlement ?? risk.settlement_time],
-    ["Regulatory volatility", risk.regulatory_volatility],
-    ["Market saturation", risk.market_saturation],
-  ];
+
+  const riskItems = Object.entries(risk)
+    .filter(([k, v]) => RISK_FACTOR_LABELS[k] != null && v != null)
+    .map(([k, v]) => [RISK_FACTOR_LABELS[k], v]);
+
+  const trajectoryLabel = (t) => ({ up: "Growing market", down: "Declining market", stable: "Stable market" }[t] || t || "");
 
   return `
     <details class="expander-card" style="margin-top:14px;">
-      <summary>SPARC v2 engine details</summary>
+      <summary>Why this was recommended</summary>
       <div class="expander-body">
         <div class="two-col">
           <div>
-            <div class="card-label">Revenue potential</div>
+            <div class="card-label">Bundle fit for your profile</div>
             ${revenue.length ? revenue.slice(0, 3).map(r => `
               <div class="callout-item">
-                <strong>${esc(r.bundle || "Bundle")} — score ${esc(r.score ?? "n/a")}</strong>
-                <span>TAM ₹${esc(r.tam_cr ?? "n/a")}Cr · adoption ${pct(r.adoption)} · margin ${pct(r.margin)} · ${esc(r.trajectory || "n/a")}</span>
-                ${r.why ? `<span class="callout-sub">${esc(r.why)}</span>` : ""}
-              </div>`).join("") : emptyState("—", "No revenue data")}
+                <strong>${esc(r.bundle || "Bundle")}</strong>
+                <span>${r.why ? esc(r.why) : `About ${pct(r.adoption)} of businesses at your stage carry this bundle.`}${r.trajectory ? ` ${esc(trajectoryLabel(r.trajectory))}.` : ""}</span>
+              </div>`).join("") : emptyState("—", "No fit data available")}
           </div>
           <div>
-            <div class="card-label">Risk multipliers</div>
-            ${riskItems.filter(([,v]) => v != null).map(([label, value]) => `
+            <div class="card-label">Market risk factors for this cover</div>
+            ${riskItems.length ? riskItems.map(([label, value]) => `
               <div class="kv-row">
                 <span class="kv-key">${esc(label)}</span>
                 <span class="kv-val">${pct(value)}</span>
-              </div>`).join("")}
+              </div>`).join("") : `<div style="color:var(--ink-faint);font-size:13px;">No risk factor data.</div>`}
           </div>
         </div>
         ${path.length ? `
           <div style="margin-top:18px;">
-            <div class="card-label">Insurance graduation path</div>
+            <div class="card-label">Your coverage roadmap as you grow</div>
             <div class="timeline">${path.map((p, i) => `
               <div class="timeline-item">
                 <div class="tl-dot">${i + 1}</div>
@@ -1713,12 +1736,14 @@ function renderV2Insights(result) {
           </div>` : ""}
         ${triggers.length ? `
           <div style="margin-top:18px;">
-            <div class="card-label">Regulatory triggers fired</div>
+            <div class="card-label">Why certain covers were flagged for you</div>
             <div class="two-col">
               ${triggers.map(t => `
                 <div class="callout-item">
-                  <strong>${esc(t.signal || "Trigger")} — ${esc(t.product || "")}</strong>
-                  <span>${t.citation_url ? `<a href="${esc(t.citation_url)}" target="_blank" rel="noopener noreferrer">${esc(t.regulation || t.reg || "")}</a>` : esc(t.regulation || t.reg || "")}</span>
+                  <strong>${esc(SIGNAL_LABELS[t.signal] || t.signal || "Trigger")} → ${esc(t.product || "")}</strong>
+                  <span>${t.citation_url
+                    ? `<a href="${esc(t.citation_url)}" target="_blank" rel="noopener noreferrer">${esc(t.regulation || t.reg || "")}</a>`
+                    : esc(t.regulation || t.reg || "")}</span>
                 </div>`).join("")}
             </div>
           </div>` : ""}
